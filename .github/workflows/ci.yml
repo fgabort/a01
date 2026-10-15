@@ -87,3 +87,23 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+  deploy:
+    name: Deploy to kubeadm
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - name: Update image
+        env:
+          IMAGE: ghcr.io/fgabort/a1
+        run: |
+          kubectl -n devops-learning set image \
+            deployment/devops-learning \
+            app=${IMAGE}:latest
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n devops-learning rollout status \
+            deployment/devops-learning \
+            --timeout=180s
