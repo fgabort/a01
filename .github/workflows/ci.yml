@@ -96,7 +96,7 @@ jobs:
     steps:
       - name: Update image
         env:
-          IMAGE: ghcr.io/fgabort/a1
+          IMAGE: ghcr.io/fgabort/a01
         run: |
           kubectl -n devops-learning set image \
             deployment/devops-learning \
