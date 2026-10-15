@@ -1,5 +1,5 @@
 
-name: Python CI
+name: Python CI and Publish
 
 on:
   push:
@@ -10,13 +10,15 @@ on:
 permissions:
   contents: read
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   lint:
-    name: Lint Python code
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -24,18 +26,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install Ruff
         run: pip install ruff
 
-      - name: Run Ruff
+      - name: Lint
         run: ruff check .
 
   test:
-    name: Run tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -43,22 +43,47 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install pytest
         run: pip install pytest
 
-      - name: Run pytest
+      - name: Test
         run: pytest -v
 
-  docker-build:
-    name: Build Docker image
+  publish:
     runs-on: ubuntu-latest
     needs: [lint, test]
 
+    # Only publish images from pushes, not pull requests.
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build image
-        run: |
-          docker build \
-            -t devops-learning:${GITHUB_SHA} .
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
